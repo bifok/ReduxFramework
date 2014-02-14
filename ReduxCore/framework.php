@@ -49,7 +49,7 @@ if( !class_exists( 'ReduxFramework' ) ) {
         // ATTENTION DEVS
         // Please update the build number with each push, no matter how small.
         // This will make for easier support when we ask users what version they are using.
-        public static $_version = '3.1.5.20';
+        public static $_version = '3.1.6';
         public static $_dir;
         public static $_url;
         public static $_properties;
@@ -214,6 +214,7 @@ if( !class_exists( 'ReduxFramework' ) ) {
 
         public $framework_url       = 'http://www.reduxframework.com/';
         public $instance            = null;
+        public $admin_notices       = array();
         public $page                = '';
         public $args                = array(
             'opt_name'           => '', // Must be defined by theme/plugin
@@ -232,6 +233,7 @@ if( !class_exists( 'ReduxFramework' ) ) {
             'allow_sub_menu'     => true, // allow submenus to be added if menu_type == menu
             'save_defaults'      => true, // Save defaults to the DB on it if empty
             'footer_credit'      => '',
+            'admin_bar'          => true, // Show the panel pages on the admin bar
             'help_tabs'          => array(),
             'help_sidebar'       => '', // __( '', $this->args['domain'] );
             'database'           => '', // possible: options, theme_mods, theme_mods_expanded, transient
@@ -388,8 +390,14 @@ if( !class_exists( 'ReduxFramework' ) ) {
                 // Options page
                 add_action( 'admin_menu', array( $this, '_options_page' ) );
 
+                // Admin Bar menu
+                add_action( 'admin_bar_menu', array( $this, '_admin_bar_menu' ) , 999 );
+
                 // Register setting
                 add_action( 'admin_init', array( $this, '_register_settings' ) );
+
+                // Display admin notices
+                add_action( 'admin_notices', array( $this, '_admin_notices' ) );
 
                 // Enqueue the admin page CSS and JS
                 if ( isset( $_GET['page'] ) && $_GET['page'] == $this->args['page_slug'] ) {
@@ -424,6 +432,15 @@ if( !class_exists( 'ReduxFramework' ) ) {
             do_action( 'redux/loaded', $this );
 
         } // __construct()
+
+        function _admin_notices() {
+            if (!empty($this->admin_notices)) {
+                foreach( $this->admin_notices as $notice ) {
+                    echo '<div class="'.$notice['type'].'"><p>' . $notice['msg'] . '</p></div>';
+                }
+                $this->admin_notices = array();
+            }
+        }
 
         /**
          * Load the plugin text domain for translation.
@@ -850,8 +867,8 @@ if( !class_exists( 'ReduxFramework' ) ) {
                     if( isset( $section['fields'] ) ) {
                         foreach( $section['fields'] as $field ) {
                             //if we have required option in group field
-                            if(isset($field['subfields']) && is_array($field['subfields'])){
-                                foreach ($field['subfields'] as $subfield) {
+                            if(isset($field['fields']) && is_array($field['fields'])){
+                                foreach ($field['fields'] as $subfield) {
                                     if(isset($subfield['required']))
                                         $this->get_fold($subfield);
                                 }
@@ -1080,6 +1097,56 @@ if( !class_exists( 'ReduxFramework' ) ) {
             add_action( "load-{$this->page}", array( &$this, '_load_page' ) );
 
         } // _options_page()
+
+        /**
+         * Add admin bar menu
+         *
+         * @since       3.1.5.16
+         * @access      public
+         * @global      $wp_styles
+         * @return      void
+         */
+        function _admin_bar_menu()
+        {
+            global $menu, $submenu, $wp_admin_bar, $redux_demo;
+            $ct = wp_get_theme();
+            $theme_data = $ct;
+            if ( !is_super_admin() || !is_admin_bar_showing() || !$this->args['admin_bar'] )
+                return;
+            if($menu){
+                foreach($menu as $menu_item):
+                    if($menu_item[2]===$this->args["page_slug"]){
+                        $nodeargs = array(
+                            'id'    => $menu_item[2],
+                            'title' => "<span class='ab-icon dashicons-admin-generic'></span>".$menu_item[0],
+                            'href'  => admin_url('admin.php?page='.$menu_item[2]),
+                            'meta'  => array( )
+                        );
+                        $wp_admin_bar->add_node( $nodeargs );
+                        break;
+                    }
+                    endforeach;
+                if ( isset( $submenu[$this->args["page_slug"]] ) && is_array( $submenu[$this->args["page_slug"]] ) ) {
+                    foreach($submenu[$this->args["page_slug"]] as $index => $redux_options_submenu):
+                        $subnodeargs = array(
+                            'id'    => $this->args["page_slug"] . '_' . $index,
+                            'title' => $redux_options_submenu[0],
+                            'parent'=> $this->args["page_slug"],
+                            'href'  => admin_url('admin.php?page='.$redux_options_submenu[2]),
+                        );
+                        $wp_admin_bar->add_node( $subnodeargs );
+                    endforeach;
+                }
+            }else{
+                $nodeargs = array(
+                    'id'    => $this->args["page_slug"],
+                    'title' => "<span class='ab-icon dashicons-admin-generic'></span>" . $theme_data->get('Name') . " " . __('Options', 'redux-framework-demo'),
+                    'href'  => admin_url('admin.php?page='.$this->args["page_slug"]),
+                    'meta'  => array()
+                );
+                $wp_admin_bar->add_node( $nodeargs );
+            }
+        } // _admin_bar_menu()
 
         /**
          * Enqueue CSS/JS for options page
@@ -1320,7 +1387,9 @@ if( !class_exists( 'ReduxFramework' ) ) {
             foreach( $this->sections as $section ) {
                 if( isset( $section['fields'] ) ) {
                     foreach( $section['fields'] as $field ) {
-                        if( isset( $field['type'] ) && $field['type'] != 'callback' ) {
+                        // TODO AFTER GROUP WORKS - Revert IF below
+                        // if( isset( $field['type'] ) && $field['type'] != 'callback' ) {
+                        if( isset( $field['type'] ) && $field['type'] != 'callback' && $field['type'] != 'group' ) {
                             $field_class = 'ReduxFramework_' . $field['type'];
                             /**
                              * Field class file
@@ -1740,6 +1809,17 @@ if( !class_exists( 'ReduxFramework' ) ) {
                     foreach( $section['fields'] as $fieldk => $field ) {
                         if ( !isset( $field['type'] ) ) {
                             continue; // You need a type!
+                        }
+                        // TODO AFTER GROUP WORKS - Remove IF statement
+                        
+                        if ( $field['type'] == "group" && isset( $_GET['page'] ) && $_GET['page'] == $this->args['page_slug'] ) {
+                            if ( $this->args['dev_mode'] ) {
+                                $this->admin_notices[] = array(
+                                    'type' => 'error',
+                                    'msg' => 'The <strong>group field</strong> has been <strong>removed</strong> until it works better. This message will only appear in dev_mode.',
+                                );
+                            }
+                            continue; // Disabled for now
                         }
                         if (isset($field['permissions'])) {
                             if ( !current_user_can($field['permissions']) ) {
@@ -2763,6 +2843,10 @@ if( !class_exists( 'ReduxFramework' ) ) {
                      */
                     do_action( "redux/field/{$this->args['opt_name']}/render/before", $field, $value );
 
+                    if ( !isset( $field['name_suffix'] ) ) {
+                        $field['name_suffix'] = "";
+                    }
+
                     $render = new $field_class( $field, $value, $this );
                     ob_start();
                     /** @noinspection PhpUndefinedMethodInspection */
@@ -2815,7 +2899,10 @@ if( !class_exists( 'ReduxFramework' ) ) {
                      */
                     do_action( "redux/field/{$this->args['opt_name']}/fieldset/before/{$this->args['opt_name']}", $field, $value );
                     
-                    echo '<fieldset id="'.$this->args['opt_name'].'-'.$field['id'].'" class="redux-field-container redux-field redux-container-'.$field['type'].' '.$class_string.'" data-id="'.$field['id'].'" '.$data_string.'>';
+                    if (!isset($field['fields']) || empty($field['fields'])) {
+                        echo '<fieldset id="'.$this->args['opt_name'].'-'.$field['id'].'" class="redux-field-container redux-field redux-container-'.$field['type'].' '.$class_string.'" data-id="'.$field['id'].'" '.$data_string.'>';    
+                    }
+
                         echo $_render;
 
                         if (!empty($field['desc'])) {
@@ -2823,8 +2910,10 @@ if( !class_exists( 'ReduxFramework' ) ) {
                         }
                     
                     echo ( isset( $field['description'] ) && $field['type'] != "info"  && $field['type'] !== "section" && $field['type'] != "group" && !empty( $field['description'] ) ) ? '<div class="description field-desc">' . $field['description'] . '</div>' : '';
-
-                    echo '</fieldset>';
+                    
+                    if (!isset($field['fields']) || empty($field['fields'])) {
+                        echo '</fieldset>';
+                    }
 
                     /**
                      * action 'redux-after-field-{opt_name}'

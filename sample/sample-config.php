@@ -3,9 +3,6 @@
   ReduxFramework Sample Config File
   For full documentation, please visit: https://github.com/ReduxFramework/ReduxFramework/wiki
  * */
-if (!class_exists("ReduxFramework")) {
-    return;
-}
 
 if (!class_exists("Redux_Framework_sample_config")) {
 
@@ -18,14 +15,19 @@ if (!class_exists("Redux_Framework_sample_config")) {
 
         public function __construct() {
             // This is needed. Bah WordPress bugs.  ;)
-            if (ReduxFramework::$_is_plugin) {
-                add_action('plugins_loaded', array($this, 'initSettings'), 10);    
-            } else {
+            if ( defined('TEMPLATEPATH') && strpos(__FILE__,TEMPLATEPATH) !== false) {
                 $this->initSettings();
+            } else {
+                add_action('plugins_loaded', array($this, 'initSettings'), 10);    
             }
         }
 
         public function initSettings() {
+
+            if ( !class_exists("ReduxFramework" ) ) {
+                return;
+            }       
+            
             // Just for demo purposes. Not needed per say.
             $this->theme = wp_get_theme();
 
@@ -238,6 +240,7 @@ if (!class_exists("Redux_Framework_sample_config")) {
                 'icon' => 'el-icon-home',
                 // 'submenu' => false, // Setting submenu to false on a given section will hide it from the WordPress sidebar menu!
                 'fields' => array(
+                
                     array(
                         'id' => 'webFonts',
                         'type' => 'media',
@@ -1142,15 +1145,16 @@ if (!class_exists("Redux_Framework_sample_config")) {
             }
             $theme_info .= '</div>';
 
-            if (file_exists(dirname(__FILE__) . '/README.md')) {
+            if (file_exists(dirname(__FILE__) . '/../README.md')) {
                 $this->sections['theme_docs'] = array(
-                    'icon' => ReduxFramework::$_url . 'assets/img/glyphicons/glyphicons_071_book.png',
+                    'icon' => 'el-icon-list-alt',
                     'title' => __('Documentation', 'redux-framework-demo'),
                     'fields' => array(
                         array(
                             'id' => '17',
                             'type' => 'raw',
-                            'content' => file_get_contents(dirname(__FILE__) . '/README.md')
+                            'markdown' => true,
+                            'content' => file_get_contents(dirname(__FILE__) . '/../README.md')
                         ),
                     ),
                 );
@@ -1285,6 +1289,7 @@ if (!class_exists("Redux_Framework_sample_config")) {
                 'menu_title' => __('Sample Options', 'redux-framework-demo'),
                 'page' => __('Sample Options', 'redux-framework-demo'),
                 'google_api_key' => '', // Must be defined to add google fonts to the typography module
+                //'admin_bar' => false, // Show the panel pages on the admin bar
                 'global_variable' => '', // Set a different name for your global variable other than the opt_name
                 'dev_mode' => true, // Show the time the page took to load, etc
                 'customizer' => true, // Enable basic customizer support
